@@ -1,42 +1,42 @@
 
 CREATE TABLE IF NOT EXISTS unique_id (
-id INT PRIMARY KEY;
+  id INT PRIMARY KEY;
 )
 
 
 CREATE TABLE IF NOT EXISTS member (
-id INT REFERENCES unique_id(id),
-password VARCHAR(128) NOT NULL,
-latest_activity TIMESTAMP,
-is_leader BIT,
-upvotes INT DEFAULT 0,
-downvotes INT DEFAULT 0
+  id INT REFERENCES unique_id(id),
+  password VARCHAR(128) NOT NULL,
+  latest_activity TIMESTAMP,
+  is_leader BIT,
+  upvotes INT DEFAULT 0,
+  downvotes INT DEFAULT 0
 )
 
 
 CREATE TABLE IF NOT EXISTS vote (
-actionid INT REFERENCES action(id),
-memberid INT REFERENCES member(id),
-type VARCHAR(32)
+  actionid INT REFERENCES action(id),
+  memberid INT REFERENCES member(id),
+  type VARCHAR(32)
 )
 
 
 CREATE TABLE IF NOT EXISTS action (
-id INT REFERENCES unique_id(id),
-memberid INT REFERENCES member(id),
-projectid INT REFERENCES project(id),
-type VARCHAR(32)
+  id INT REFERENCES unique_id(id),
+  memberid INT REFERENCES member(id),
+  projectid INT REFERENCES project(id),
+  type VARCHAR(32)
 )
 
 
 CREATE TABLE IF NOT EXISTS project (
-id INT REFERENCES unique_id(id),
-authorityid INT REFERENCES authority(id)
+  id INT REFERENCES unique_id(id),
+  authorityid INT REFERENCES authority(id)
 )
 
 
 CREATE TABLE IF NOT EXISTS authority (
-id INT REFERENCES unique_id(id)
+  id INT REFERENCES unique_id(id)
 )
 
 

@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="HydraSettings">
-    <option name="hydraStorePath" value="C:\Users\kolacz\Documents\GitRepos\data_bases\.hydra\idea" />
-    <option name="noOfCores" value="2" />
-    <option name="projectRoot" value="C:\Users\kolacz\Documents\GitRepos\data_bases" />
-    <option name="sourcePartitioner" value="auto" />
+    <option name="projectRoot" value="$PROJECT_DIR$" />
   </component>
 </project>
