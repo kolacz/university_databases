@@ -1,3 +1,13 @@
+// Start/stop psql manually
+// pg_ctl -D /usr/local/var/postgres start
+// pg_ctl -D /usr/local/var/postgres stop
+
+// Start psql server now and relaunch at login / stop
+// brew services start postgresql
+// brew services stop postgresql
+
+
+
 object Main extends App {
   implicit val init_mode: Boolean = args.length == 1 && args(0) == "--init"
 
