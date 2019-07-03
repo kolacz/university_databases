@@ -5,7 +5,16 @@ object Main extends App {
 
   val apiCaller = new PartyManager()
 
-  Iterator.continually(scala.io.StdIn.readLine).
-    takeWhile(_.nonEmpty).
-    foreach(line => apiCaller.call(line))
+  try {
+    Iterator.continually(scala.io.StdIn.readLine).
+      takeWhile(_.nonEmpty).
+      foreach(line => apiCaller.call(line))
+  }
+  catch {
+    case e: Exception => println("catch!")
+  }
+  finally {
+    apiCaller.exit()
+    println("finally!")
+  }
 }
