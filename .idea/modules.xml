@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/databases.iml" filepath="$PROJECT_DIR$/databases.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/university_databases.iml" filepath="$PROJECT_DIR$/.idea/modules/university_databases.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/university_databases-build.iml" filepath="$PROJECT_DIR$/.idea/modules/university_databases-build.iml" />
     </modules>
   </component>
 </project>

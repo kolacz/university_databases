@@ -1,5 +1,3 @@
-package scala
-
 object Main extends App {
   implicit val init_mode: Boolean = args.length == 1 && args(0) == "--init"
 

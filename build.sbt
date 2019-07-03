@@ -1,3 +1,9 @@
+name := "university_databases"
+
+version := "0.1"
+
+scalaVersion := "2.12.7"
+
 scalacOptions += "-Ypartial-unification" // 2.11.9+
 
 libraryDependencies ++= Seq(

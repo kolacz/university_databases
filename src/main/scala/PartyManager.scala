@@ -1,5 +1,3 @@
-package scala
-
 import doobie._
 import doobie.implicits._
 import cats.effect.IO
