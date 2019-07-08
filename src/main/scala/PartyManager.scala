@@ -8,15 +8,6 @@ import cats.effect.{ContextShift, IO}
 import org.json4s._
 import org.json4s.native.JsonMethods._
 
-import java.sql.Timestamp
-import java.lang.Class
-
-/**
-  *
-  * API CALL SUPERCLASS
-  *
-  */
-
 
 object ApiCall {
   private var xaTransactor: Option[Transactor.Aux[IO, Unit]] = None
@@ -73,13 +64,12 @@ sealed trait ApiCall[Repr <: ApiCall[Repr]] {
   }
 
   def checkPassword(member: Long, password: String): Unit = {
-    val correct = sql"""SELECT CASE WHEN EXIST (
+    val correct = sql"""SELECT CASE WHEN EXISTS (
          |SELECT * FROM member WHERE member.id = $member AND member.password = crypt($password, member.password) )
          |THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END""".stripMargin
       .query[Boolean].unique.transact(this.getTransactor).unsafeRunSync
     if (!correct) throw new Exception("Incorrect credentials!")
   }
-
 
   def checkFrozen(member: Long, timestamp: Long): Unit = {
     if (isMemberFrozen(member, timestamp)) throw new Exception("Member is frozen!")
@@ -87,7 +77,7 @@ sealed trait ApiCall[Repr <: ApiCall[Repr]] {
 
   def checkLeader(member: Long): Unit = {
     val isLeader =
-      sql"""SELECT CASE WHEN EXIST (
+      sql"""SELECT CASE WHEN EXISTS (
            |SELECT * FROM member WHERE member.id = $member AND member.is_leader )
            |THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END""".stripMargin
       .query[Boolean].unique.transact(this.getTransactor).unsafeRunSync
@@ -95,28 +85,39 @@ sealed trait ApiCall[Repr <: ApiCall[Repr]] {
     if (!isLeader) throw new Exception("Member is not a leader!")
   }
 
-  def addProject(project: Long, authority: Long): Boolean = {
-    sql"INSERT INTO unique_ids VALUES (project), (authority)".update.run.transact(this.getTransactor).unsafeRunSync
-    sql"INSERT INTO authority VALUES (authority)".update.run.transact(this.getTransactor).unsafeRunSync
-    sql"INSERT INTO project VALUES (project)".update.run.transact(this.getTransactor).unsafeRunSync
+  def addProject(project: Long, authority: Option[Long]): Boolean = {
+    authority match {
+      case None =>
+        sql"INSERT INTO unique_ids VALUES ($project)"
+          .update.run.transact(this.getTransactor).unsafeRunSync
+
+      case Some(auth) =>
+        sql"INSERT INTO unique_ids VALUES ($project), ($auth)"
+          .update.run.transact(this.getTransactor).unsafeRunSync
+        sql"INSERT INTO authority VALUES ($auth)"
+          .update.run.transact(this.getTransactor).unsafeRunSync
+    }
+
+    sql"INSERT INTO project VALUES ($project)"
+      .update.run.transact(this.getTransactor).unsafeRunSync
 
     true
   }
 
   def addAction(actionType: String, timestamp: Long, member: Long,
-                password: String, action: Long, project: Long, authority: Long): Boolean = {
+                password: String, action: Long, project: Long, authority: Option[Long]): Boolean = {
     if (!handleMember(member, password, timestamp))
       false
     else {
       val uniqueIds = sql"SELECT id FROM unique_ids".query[Long].to[List].transact(this.getTransactor).unsafeRunSync
-
+      println(uniqueIds)
       val projectOk = if (!(uniqueIds contains project)) addProject(project, authority) else false
 
       if (projectOk) {
         sql"INSERT INTO unique_ids VALUES ($action)"
           .update.run.transact(this.getTransactor).unsafeRunSync
 
-        sql"INSERT INTO action VALUES ($action, $project, $member, $actionType)"
+        sql"INSERT INTO action VALUES ($action, $project, $member, $actionType :: action_t)"
           .update.run.transact(this.getTransactor).unsafeRunSync
       }
       projectOk
@@ -124,7 +125,8 @@ sealed trait ApiCall[Repr <: ApiCall[Repr]] {
   }
 
   def addVote(voteType: String, member: Long, action: Long): Boolean = {
-    sql"INSERT INTO vote VALUES ($action, $member, $voteType)".update.run.transact(this.getTransactor).unsafeRunSync
+    sql"INSERT INTO vote VALUES ($action, $member, $voteType :: vote_t)"
+      .update.run.transact(this.getTransactor).unsafeRunSync
 
     if (voteType == "upvote")
       sql"UPDATE member SET upvotes = upvotes + 1 WHERE id = member"
@@ -136,7 +138,6 @@ sealed trait ApiCall[Repr <: ApiCall[Repr]] {
     true
   }
 }
-
 
 
 /**
@@ -188,9 +189,14 @@ case class Support(timestamp: Long,
 object Support extends ApiCall[Support] {
   def perform(func: Support): (String, Option[Any]) = {
 
-
-
-    ("OK", None)
+    if(handleMember(func.member, func.password, func.timestamp)) {
+      if (this.addAction(actionType = "support", func.timestamp, func.member, func.password,
+        func.action, func.project, func.authority))
+        ("OK", None)
+      else ("ERROR", None)
+    }
+    else
+      ("ERROR", None)
   }
 }
 
@@ -202,8 +208,16 @@ case class Protest(timestamp: Long,
                    authority: Option[Long]) extends ApiCall[Protest]
 
 object Protest extends ApiCall[Protest] {
-  def perform(func: Protest): Unit = {
+  def perform(func: Protest): (String, Option[Any]) = {
 
+    if(handleMember(func.member, func.password, func.timestamp)) {
+      if(this.addAction(actionType = "protest", func.timestamp, func.member, func.password,
+        func.action, func.project, func.authority))
+        ("OK", None)
+      else ("ERROR", None)
+    }
+    else
+      ("ERROR", None)
   }
 }
 
@@ -213,7 +227,18 @@ case class Upvote(timestamp: Long,
                      action: Long) extends ApiCall[Upvote]
 
 object Upvote extends ApiCall[Upvote] {
-  def perform(func: Upvote): Unit = {}
+  def perform(func: Upvote): (String, Option[Any]) = {
+    if(handleMember(func.member, func.password, func.timestamp)) {
+      val actionIds = sql"SELECT id FROM action".query[Long].to[List].transact(this.getTransactor).unsafeRunSync
+
+      if (!(actionIds contains func.action))
+        if (this.addVote(voteType = "upvote", func.member, func.action))
+          ("OK", None)
+        else ("ERROR", None)
+      else ("ERROR", None)
+    }
+    else ("ERROR", None)
+  }
 }
 
 case class Downvote(timestamp: Long,
@@ -222,7 +247,18 @@ case class Downvote(timestamp: Long,
                        action: Long) extends ApiCall[Downvote]
 
 object Downvote extends ApiCall[Downvote] {
-  def perform(func: Downvote): Unit = {}
+  def perform(func: Downvote): (String, Option[Any]) = {
+    if(handleMember(func.member, func.password, func.timestamp)) {
+      val actionIds = sql"SELECT id FROM action".query[Long].to[List].transact(this.getTransactor).unsafeRunSync
+
+      if (!(actionIds contains func.action))
+        if (this.addVote(voteType = "downvote", func.member, func.action))
+          ("OK", None)
+        else ("ERROR", None)
+      else ("ERROR", None)
+    }
+    else ("ERROR", None)
+  }
 }
 
 case class Actions(timestamp: Long,
@@ -233,9 +269,7 @@ case class Actions(timestamp: Long,
                    authority: Option[Long]) extends ApiCall[Actions]
 
 object Actions extends ApiCall[Actions] {
-  def perform(func: Actions): Unit = {
-
-  }
+  def perform(func: Actions): Unit = {}
 }
 
 case class Projects(timestamp: Long,
@@ -244,9 +278,7 @@ case class Projects(timestamp: Long,
                     authority: Option[Long]) extends ApiCall[Projects]
 
 object Projects extends ApiCall[Projects] {
-  def perform(func: Projects): Unit = {
-
-  }
+  def perform(func: Projects): Unit = {}
 }
 
 case class Votes(timestamp: Long,
@@ -256,17 +288,13 @@ case class Votes(timestamp: Long,
                    project: Option[Long]) extends ApiCall[Votes]
 
 object Votes extends ApiCall[Votes] {
-  def perform(func: Votes): Unit = {
-
-  }
+  def perform(func: Votes): Unit = {}
 }
 
 case class Trolls(timestamp: Long) extends ApiCall[Trolls]
 
 object Trolls extends ApiCall[Trolls] {
-  def perform(func: Trolls): Unit = {
-
-  }
+  def perform(func: Trolls): Unit = {}
 }
 
 
@@ -281,20 +309,20 @@ class PartyManager(implicit val initMode: Boolean) {
 
     val (status, data) = try {
       funcName match {
-        case "open" => Open.perform(argsJson.extract[Open])
-        case "leader" => Leader.perform(argsJson.extract[Leader])
-        case "support" => Support.perform(argsJson.extract[Support])
-        case "protest" => Protest.perform(argsJson.extract[Protest])
-        case "upvote" => Upvote.perform(argsJson.extract[Upvote])
+        case "open"     =>     Open.perform(argsJson.extract[Open])
+        case "leader"   =>   Leader.perform(argsJson.extract[Leader])
+        case "support"  =>  Support.perform(argsJson.extract[Support])
+        case "protest"  =>  Protest.perform(argsJson.extract[Protest])
+        case "upvote"   =>   Upvote.perform(argsJson.extract[Upvote])
         case "downvote" => Downvote.perform(argsJson.extract[Downvote])
-        case "actions" => Actions.perform(argsJson.extract[Actions])
+        case "actions"  =>  Actions.perform(argsJson.extract[Actions])
         case "projects" => Projects.perform(argsJson.extract[Projects])
-        case "votes" => Votes.perform(argsJson.extract[Votes])
-        case "trolls" => Trolls.perform(argsJson.extract[Trolls])
+        case "votes"    =>    Votes.perform(argsJson.extract[Votes])
+        case "trolls"   =>   Trolls.perform(argsJson.extract[Trolls])
         case _ => ("ERROR", None)
       }
     } catch {
-      case _: org.postgresql.util.PSQLException => ("ERROR", None)
+      case e: org.postgresql.util.PSQLException => ("ERROR", None); println(e)
     }
 
     data match {

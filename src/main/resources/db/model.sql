@@ -1,11 +1,15 @@
+-- psql -U postgres -c "DROP SCHEMA public CASCADE;"
+-- psql -U postgres -c "DROP DATABASE IF EXISTS student;"
+-- psql -U postgres -c "DROP USER IF EXISTS app;"
+-- psql -U postgres -c "CREATE DATABASE student;"
+-- psql -U postgres -c "CREATE SCHEMA public;"
+
+
 CREATE EXTENSION pgcrypto;
 
 CREATE TYPE action_t AS ENUM ('support', 'protest');
 CREATE TYPE vote_t AS ENUM ('upvote', 'downvote');
 
-------------
--- TABLES --
-------------
 
 CREATE TABLE IF NOT EXISTS unique_ids(
     id INTEGER PRIMARY KEY
@@ -43,9 +47,14 @@ CREATE TABLE IF NOT EXISTS vote(
     PRIMARY KEY(action_id, member_id)
 );
 
------------
--- USERS --
------------
 
 CREATE ROLE app WITH ENCRYPTED PASSWORD 'qwerty';
 ALTER ROLE app WITH LOGIN;
+
+REVOKE ALL
+ON ALL TABLES IN SCHEMA public
+FROM PUBLIC;
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON ALL TABLES IN SCHEMA public
+TO app;
