@@ -9,20 +9,19 @@
 
 
 object Main extends App {
-  implicit val init_mode: Boolean = args.length == 1 && args(0) == "--init"
+  implicit val initMode: Boolean = args.length == 1 && args(0) == "--init"
 
   val apiCaller = new PartyManager()
 
   try {
     Iterator.continually(scala.io.StdIn.readLine).
       takeWhile(_.nonEmpty).
-      foreach(line => apiCaller.call(line))
+      foreach(line => println(apiCaller.call(line)))
   }
   catch {
-    case e: Exception => println("catch!")
+    case e: Exception => println(s"catched: $e!")
   }
   finally {
-    apiCaller.exit()
     println("finally!")
   }
 }
